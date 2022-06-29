@@ -30,21 +30,20 @@ users:
 `
 
 var (
-	minimalConf      = fmt.Sprintf("kubeconfig: |\n%s", indent(kubeconfig, "  "))
-	loadbalancerConf = fmt.Sprintf("kubeconfig: |\n%s\nloadBalancer:\n  enabled: %t\n  creationPollInterval: %d", indent(kubeconfig, "  "), false, 3)
-	instancesConf    = fmt.Sprintf("kubeconfig: |\n%s\ninstancesV2:\n  enabled: %t\n  enableInstanceTypes: %t", indent(kubeconfig, "  "), false, true)
-	zonesConf        = fmt.Sprintf("kubeconfig: |\n%s\nzones:\n  enabled: %t", indent(kubeconfig, "  "), false)
-	allConf          = fmt.Sprintf("kubeconfig: |\n%s\nloadBalancer:\n  enabled: %t\ninstancesV2:\n  enabled: %t", indent(kubeconfig, "  "), false, false)
-	invalidKubeconf  = "kubeconfig: bla"
+	minimalConf      = ""
+	loadbalancerConf = fmt.Sprintf("loadBalancer:\n  enabled: %t\n  creationPollInterval: %d", false, 3)
+	instancesConf    = fmt.Sprintf("instancesV2:\n  enabled: %t\n  enableInstanceTypes: %t", false, true)
+	zonesConf        = fmt.Sprintf("zones:\n  enabled: %t", false)
+	allConf          = fmt.Sprintf("loadBalancer:\n  enabled: %t\ninstancesV2:\n  enabled: %t", false, false)
+	invalidKubeconf  = "bla"
 )
 
 func indent(s, indent string) string {
 	return indent + strings.ReplaceAll(s, "\n", fmt.Sprintf("\n%s", indent))
 }
 
-func makeCloudConfig(kubeconfig string, loadbalancerEnabled, instancesEnabled bool, lbCreationPollInterval int) CloudConfig {
+func makeCloudConfig(loadbalancerEnabled, instancesEnabled bool, lbCreationPollInterval int) CloudConfig {
 	return CloudConfig{
-		Kubeconfig: kubeconfig,
 		LoadBalancer: LoadBalancerConfig{
 			Enabled:              loadbalancerEnabled,
 			CreationPollInterval: lbCreationPollInterval,
@@ -61,10 +60,10 @@ func TestNewCloudConfigFromBytes(t *testing.T) {
 		expectedCloudConfig CloudConfig
 		expectedError       error
 	}{
-		{minimalConf, makeCloudConfig(kubeconfig, true, true, 5), nil},
-		{loadbalancerConf, makeCloudConfig(kubeconfig, false, true, 3), nil},
-		{instancesConf, makeCloudConfig(kubeconfig, true, false, 5), nil},
-		{allConf, makeCloudConfig(kubeconfig, false, false, 5), nil},
+		{minimalConf, makeCloudConfig(true, true, 5), nil},
+		{loadbalancerConf, makeCloudConfig(false, true, 3), nil},
+		{instancesConf, makeCloudConfig(true, false, 5), nil},
+		{allConf, makeCloudConfig(false, false, 5), nil},
 	}
 
 	for _, test := range tests {
@@ -86,8 +85,10 @@ func TestKubevirtCloudProviderFactory(t *testing.T) {
 	} else if err.Error() != "No kubevirt cloud provider config file given" {
 		t.Errorf("Expected: 'No kubevirt cloud provider config file given', got '%v'", err)
 	}
-
-	_, err = kubevirtCloudProviderFactory(strings.NewReader(invalidKubeconf))
+	getInfraKubeConfig = func() (string, error) {
+		return invalidKubeconf, nil
+	}
+	_, err = kubevirtCloudProviderFactory(strings.NewReader(minimalConf))
 	if err == nil || !strings.Contains(err.Error(), "couldn't get version/kind; json parse error") {
 		t.Errorf("Expected error containing: 'couldn't get version/kind; json parse error', got '%v'", err)
 	}

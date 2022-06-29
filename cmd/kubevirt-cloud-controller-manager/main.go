@@ -23,6 +23,8 @@ package main
 import (
 	"os"
 
+	"kubevirt.io/cloud-provider-kubevirt/pkg/provider"
+
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider"
 	"k8s.io/cloud-provider/app"
@@ -33,8 +35,6 @@ import (
 	_ "k8s.io/component-base/metrics/prometheus/clientgo" // load all the prometheus client-go plugins
 	_ "k8s.io/component-base/metrics/prometheus/version"  // for version metric registration
 	"k8s.io/klog/v2"
-
-	_ "kubevirt.io/cloud-provider-kubevirt/pkg/provider"
 )
 
 func main() {
@@ -44,6 +44,7 @@ func main() {
 	}
 
 	fss := cliflag.NamedFlagSets{}
+	provider.AdditionalFlags(fss.FlagSet("additionalFlag"))
 	controllerInitializers := app.DefaultInitFuncConstructors
 
 	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, controllerInitializers, fss, wait.NeverStop)

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 
+	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -20,7 +22,10 @@ const (
 	ProviderName = "kubevirt"
 )
 
-var scheme = runtime.NewScheme()
+var (
+	infraKubeConfigPath string
+	scheme              = runtime.NewScheme()
+)
 
 func init() {
 	cloudprovider.RegisterCloudProvider(ProviderName, kubevirtCloudProviderFactory)
@@ -35,7 +40,6 @@ type cloud struct {
 }
 
 type CloudConfig struct {
-	Kubeconfig   string             `yaml:"kubeconfig"`
 	LoadBalancer LoadBalancerConfig `yaml:"loadBalancer"`
 	InstancesV2  InstancesV2Config  `yaml:"instancesV2"`
 }
@@ -89,7 +93,11 @@ func kubevirtCloudProviderFactory(config io.Reader) (cloudprovider.Interface, er
 	if err != nil {
 		return nil, fmt.Errorf("Failed to unmarshal cloud provider config: %v", err)
 	}
-	clientConfig, err := clientcmd.NewClientConfigFromBytes([]byte(cloudConf.Kubeconfig))
+	infraKubeConfig, err := getInfraKubeConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientConfig, err := clientcmd.NewClientConfigFromBytes([]byte(infraKubeConfig))
 	if err != nil {
 		return nil, err
 	}
@@ -172,4 +180,21 @@ func (c *cloud) ProviderName() string {
 // HasClusterID returns true if a ClusterID is required and set
 func (c *cloud) HasClusterID() bool {
 	return true
+}
+
+func AdditionalFlags(fs *pflag.FlagSet) {
+	fs.StringVar(&infraKubeConfigPath, "infra-kubeconfig", infraKubeConfigPath, "The path to infra KubeConfig file")
+}
+
+var getInfraKubeConfig = func() (string, error) {
+	config, err := os.Open(infraKubeConfigPath)
+	if err != nil {
+		return "", fmt.Errorf("Couldn't open infra-kubeconfig: %v", err)
+	}
+	buf := new(bytes.Buffer)
+	_, err = buf.ReadFrom(config)
+	if err != nil {
+		return "", fmt.Errorf("Failed to read infra-kubeconfig: %v", err)
+	}
+	return buf.String(), nil
 }
